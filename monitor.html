@@ -42,8 +42,8 @@
       --bezel-width: 12px;
 
       /* 3D Camera coordinates */
-      --cam-pitch: 25deg;
-      --cam-yaw: -30deg;
+      --cam-pitch: 65deg;
+      --cam-yaw: -25deg;
       --cam-roll: 0deg;
     }
 
@@ -309,7 +309,7 @@
       width: 220px;
       height: 160px;
       left: calc(50% - 110px);
-      top: calc(50% - 80px + 60px); /* Position slightly forward */
+      top: calc(50% - 80px + 10px); /* Positioned behind the screen */
       transform-style: preserve-3d;
       transform: translateZ(0px);
     }
@@ -353,7 +353,7 @@
       width: 44px;
       height: 36px;
       left: calc(50% - 22px);
-      top: calc(50% - 18px + 60px);
+      top: calc(50% - 18px + 10px); /* Positioned behind the screen */
       transform-style: preserve-3d;
       transform: translate3d(0, 0, 8px);
     }
@@ -978,16 +978,16 @@
         <div class="control-slider-group">
           <div class="slider-header">
             <span>Camera Pitch</span>
-            <span class="val" id="valCamX">25°</span>
+            <span class="val" id="valCamX">65°</span>
           </div>
-          <input type="range" class="custom-slider" id="sliderCamX" min="10" max="75" value="25">
+          <input type="range" class="custom-slider" id="sliderCamX" min="10" max="75" value="65">
         </div>
         <div class="control-slider-group">
           <div class="slider-header">
             <span>Camera Yaw</span>
-            <span class="val" id="valCamZ">-30°</span>
+            <span class="val" id="valCamZ">-25°</span>
           </div>
-          <input type="range" class="custom-slider" id="sliderCamZ" min="-180" max="180" value="-30">
+          <input type="range" class="custom-slider" id="sliderCamZ" min="-180" max="180" value="-25">
         </div>
         <div class="control-slider-group">
           <div class="slider-header">
@@ -1166,8 +1166,8 @@ display.<span class="method">setOrientation</span>(<span class="number">25</span
     let backlightMode = 'pulse'; // 'pulse', 'rgb', 'off'
 
     // Camera default configurations
-    let camPitch = 25;
-    let camYaw = -30;
+    let camPitch = 65;
+    let camYaw = -25;
     let camRoll = 0;
     let isHovering = false;
 

@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive 3D Mechanical Keyboard</title>
+  <!-- Modern Fonts (Pretendard for Korean, Plus Jakarta Sans & JetBrains Mono for English) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  
+  <style>
+    /* Design Tokens */
+    :root {
+      --bg-dark: #0c0c0e;
+      --bg-panel: #161619;
+      --border-color: #2c2c35;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --key-base: #27272a;
+      --key-base-side: #18181b;
+      --key-accent: #f59e0b; /* Enter / Esc accent */
+      --key-accent-side: #b45309;
+      --neon-glow: rgba(245, 158, 11, 0.4);
+      --accent-gold-glow: rgba(245, 158, 11, 0.3);
+      --font-sans: 'Pretendard', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Pretendard', monospace;
+      
+      /* Case Colors */
+      --case-top: #1f1f23;
+      --case-side: #121214;
+
+      /* Keyboard Mechanical / Glow parameters */
+      --key-z-default: 10px;
+      --key-z-pressed: 2px;
+      --key-extrusion: 12px;
+      --glow-intensity: 1.0;
+      --glow-blur: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 20px;
+    }
+
+    /* Dashboard side-by-side layout wrapper */
+    .dashboard-container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      max-width: 1350px;
+      gap: 30px;
+      margin-bottom: 40px;
+      padding: 0 20px;
+    }
+
+    /* Outer Viewport for 3D perspective */
+    .keyboard-viewport {
+      flex-grow: 1;
+      height: 680px;
+      position: sticky;
+      top: max(24px, calc(50vh - 340px)); /* Perfectly center vertically on scroll, clamp at 24px */
+      align-self: start;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1500px; /* Strong 3D depth perspective */
+      background: #09090b; /* Studio preview backdrop */
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+      overflow: hidden;
+    }
+
+    /* 3D Scene Wrapper */
+    .keyboard-scene {
+      position: relative;
+      width: 834px; /* Matches keyboard layout width */
+      height: 280px; /* Matches keyboard layout height */
+      transform-style: preserve-3d;
+      /* Rotate keyboard dynamically via inline styles */
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Keyboard Case (Casing/Housing) */
+    .keyboard-case {
+      position: absolute;
+      left: -12px;
+      top: -12px;
+      width: 858px; /* Layout width + padding */
+      height: 304px; /* Layout height + padding */
+      transform-style: preserve-3d;
+      z-index: 1;
+    }
+
+    /* Casing Top Bezel */
+    .case-top {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: var(--case-top);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), 
+                  inset 0 2px 4px rgba(255, 255, 255, 0.1);
+      transform: translateZ(0px);
+    }
+
+    /* Case Front Bezel (Thickness) */
+    .case-front {
+      position: absolute;
+      left: 0;
+      top: 100%;
+      width: 100%;
+      height: 24px; /* thickness of casing */
+      background: var(--case-side);
+      transform-origin: top center;
+      transform: rotateX(-90deg);
+      border-radius: 0 0 12px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Case Right Bezel */
+    .case-right {
+      position: absolute;
+      left: 100%;
+      top: 0;
+      width: 24px; /* thickness */
+      height: 100%;
+      background: var(--case-side);
+      transform-origin: left center;
+      transform: rotateY(90deg);
+      border-radius: 0 12px 12px 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Key Switch Plate (Underneath keys) */
+    .switch-plate {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: #111113;
+      border-radius: 8px;
+      transform: translateZ(2px);
+    }
+
+    /* 3D Keycap Styling */
+    .key-3d {
+      position: absolute;
+      transform-style: preserve-3d;
+      z-index: 5;
+      width: var(--kw);
+      height: var(--kh);
+      transform: translate3d(var(--kx), var(--ky), var(--key-z-default));
+      transition: transform 0.08s cubic-bezier(0.25, 1, 0.5, 1);
+      cursor: pointer;
+    }
+
+    /* Key Press & Hover States */
+    .key-3d.pressed,
+    .key-3d:hover {
+      transform: translate3d(var(--kx), var(--ky), var(--key-z-pressed)) !important; /* Sink down to plate on press/hover */
+    }
+
+    /* Common Face Styles */
+    .key-face {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    /* Keycap Top Face */
+    .key-top {
+      width: 100%;
+      height: 100%;
+      background: var(--key-base);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 0.95rem;
+      border-radius: 5px;
+      transform: translateZ(var(--key-extrusion)); /* Key thickness extrusion */
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.05),
+                  0 2px 4px rgba(0, 0, 0, 0.4);
+      transition: background-color 0.1s, box-shadow 0.1s;
+    }
+
+    /* Keycap Front Face (tilted toward viewer) */
+    .key-front {
+      width: 100%;
+      height: var(--key-extrusion); /* thickness */
+      top: 100%; /* Position at the front edge of the keycap */
+      background: var(--key-base-side);
+      transform-origin: top center;
+      transform: translateZ(var(--key-extrusion)) rotateX(-90deg);
+      border-radius: 0 0 5px 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Keycap Right Face */
+    .key-right {
+      width: var(--key-extrusion); /* thickness */
+      height: 100%;
+      background: var(--key-base-side);
+      transform-origin: left center;
+      transform: translate3d(100%, 0, var(--key-extrusion)) rotateY(90deg);
+      border-radius: 0 5px 5px 0;
+      filter: brightness(0.85); /* Slightly darker for shadow depth */
+    }
+
+    /* Underglow effect beneath each key */
+    .key-underglow {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--neon-glow);
+      filter: blur(var(--glow-blur)) brightness(var(--glow-intensity));
+      opacity: 0;
+      transform: translateZ(-1px);
+      transition: opacity 0.15s ease-out, filter 0.15s ease-out;
+      pointer-events: none;
+      border-radius: 4px;
+    }
+
+    .key-3d.pressed .key-underglow,
+    .key-3d:hover .key-underglow {
+      opacity: var(--glow-intensity);
+      background-color: var(--neon-glow);
+      box-shadow: 0 0 calc(15px * var(--glow-intensity)) var(--accent-gold-glow);
+    }
+
+    /* Accent key colors (Enter, Esc, Space, etc.) */
+    .key-3d.key-accent-style .key-top {
+      background: var(--key-accent);
+      color: #000;
+      font-weight: 700;
+    }
+
+    .key-3d.key-accent-style .key-front {
+      background: var(--key-accent-side);
+    }
+
+    .key-3d.key-accent-style .key-right {
+      background: var(--key-accent-side);
+    }
+
+    /* RGB Mode Underglow (Active when RGB mode is on) */
+    .rgb-active .key-underglow {
+      opacity: calc(0.45 * var(--glow-intensity));
+      background-color: hsl(calc(var(--base-hue, 0) + var(--rgb-hue-offset, 0)), 100%, 55%);
+      box-shadow: 0 0 calc(15px * var(--glow-intensity)) hsl(calc(var(--base-hue, 0) + var(--rgb-hue-offset, 0)), 100%, 55%);
+    }
+    
+    .rgb-active .key-3d.pressed .key-underglow,
+    .rgb-active .key-3d:hover .key-underglow {
+      opacity: var(--glow-intensity);
+      background-color: hsl(calc(var(--base-hue, 0) + var(--rgb-hue-offset, 0)), 100%, 55%);
+      box-shadow: 0 0 calc(15px * var(--glow-intensity)) hsl(calc(var(--base-hue, 0) + var(--rgb-hue-offset, 0)), 100%, 55%);
+    }
+
+    /* Pulse Mode Underglow (Active when Pulse mode is on) */
+    .pulse-active .key-underglow {
+      opacity: calc(0.35 * var(--glow-intensity));
+      animation: backlight-pulse 2.5s infinite ease-in-out;
+      background-color: var(--neon-glow);
+      box-shadow: 0 0 calc(15px * var(--glow-intensity)) var(--accent-gold-glow);
+    }
+    
+    .pulse-active .key-3d.pressed .key-underglow,
+    .pulse-active .key-3d:hover .key-underglow {
+      opacity: var(--glow-intensity);
+      background-color: var(--neon-glow);
+      box-shadow: 0 0 calc(15px * var(--glow-intensity)) var(--accent-gold-glow);
+      animation: none;
+    }
+
+    .backlight-off .key-underglow {
+      display: none !important;
+    }
+
+    @keyframes backlight-pulse {
+      0%, 100% {
+        opacity: calc(0.15 * var(--glow-intensity));
+        filter: blur(calc(var(--glow-blur) * 0.7));
+      }
+      50% {
+        opacity: calc(0.55 * var(--glow-intensity));
+        filter: blur(calc(var(--glow-blur) * 1.2));
+      }
+    }
+
+    /* Interactive Interface Control Panel (Sidebar) */
+    .control-panel {
+      width: 420px;
+      flex-shrink: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 10;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Slider Styling */
+    .control-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #19191c;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .slider-header span.val {
+      color: var(--key-accent);
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    .custom-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: #3f3f46;
+      outline: none;
+      transition: background 0.3s;
+    }
+
+    .custom-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--key-accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--neon-glow);
+      transition: transform 0.1s;
+    }
+
+    .custom-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Color Customization Styles */
+    .color-panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 24px; /* Match switch title alignment */
+    }
+
+    .color-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .color-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1f1f23;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .color-option span {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .color-input-wrapper {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid #3f3f46;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+
+    .color-input {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .control-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .switch-options {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-option {
+      flex: 1;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: var(--text-secondary);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-option:hover {
+      background: #3f3f46;
+      color: #fff;
+    }
+
+    .btn-option.active {
+      background: var(--key-accent);
+      border-color: var(--key-accent);
+      color: #000;
+      font-weight: 600;
+      box-shadow: 0 0 12px var(--neon-glow);
+    }
+
+    /* Typing Input Box */
+    .typing-box {
+      width: 100%;
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      color: #fff;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .typing-box:focus {
+      border-color: var(--key-accent);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+    }
+
+    /* Tech Info Summary */
+    .info-section {
+      width: 100%;
+      max-width: 800px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 40px;
+      z-index: 10;
+    }
+
+    .info-section h3 {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .info-section p {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .info-section ul {
+      margin-left: 20px;
+      margin-top: 10px;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.8;
+    }
+
+    /* Switch Sound Type Lights */
+    .switch-light {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--key-accent);
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-container {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .control-panel {
+        width: 100%;
+        max-width: 858px;
+      }
+      
+      .keyboard-viewport {
+        width: 100%;
+        max-width: 858px;
+        height: 520px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+
+
+  <!-- Dashboard Side-by-Side Wrapper -->
+  <div class="dashboard-container">
+    
+    <!-- Left Column: Control Panel Sidebar -->
+    <div class="control-panel">
+      <!-- Text Input (Promoted to Top for better accessibility) -->
+      <div class="control-group">
+        <div class="control-title">Type here to test the 3D keys:</div>
+        <input type="text" class="typing-box" placeholder="Start typing to see the keys animate in real-time..." id="typingTest" autofocus>
+      </div>
+
+      <!-- Group 1: Switch Sound & Mechanical -->
+      <div class="control-group">
+        <div class="control-title">
+          <span class="switch-light"></span> Sound & Mechanical
+        </div>
+        <div class="switch-options">
+          <button class="btn-option active" id="btn-sw-brown" onclick="setSwitchType('blue')">Brown (Tactile)</button>
+          <button class="btn-option" id="btn-sw-red" onclick="setSwitchType('red')">Red (Linear)</button>
+          <button class="btn-option" id="btn-sw-blue" onclick="setSwitchType('clicky')">Blue (Clicky)</button>
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Click Volume</span>
+            <span class="val" id="valVolume">70%</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderVolume" min="0" max="100" value="70">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Key Travel Depth</span>
+            <span class="val" id="valKeyHeight">10px</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderKeyHeight" min="5" max="18" value="10">
+        </div>
+      </div>
+
+      <!-- Group 2: Backlight & Effects -->
+      <div class="control-group">
+        <div class="control-title">Backlight & Effects</div>
+        <div class="switch-options">
+          <button class="btn-option active" id="btn-glow-pulse" onclick="setBacklight('pulse')">Pulse Glow</button>
+          <button class="btn-option" id="btn-glow-rgb" onclick="setBacklight('rgb')">RGB Wave</button>
+          <button class="btn-option" id="btn-glow-off" onclick="setBacklight('off')">Off</button>
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Glow Intensity</span>
+            <span class="val" id="valGlowIntensity">1.0</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderGlowIntensity" min="10" max="200" value="100">
+        </div>
+        <div class="control-slider-group" id="groupRgbSpeed" style="display: none;">
+          <div class="slider-header">
+            <span>RGB Wave Speed</span>
+            <span class="val" id="valRgbSpeed">4.0</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderRgbSpeed" min="1" max="10" value="4">
+        </div>
+        <div class="control-slider-group" id="groupGlowBlur">
+          <div class="slider-header">
+            <span>Glow Blur Radius</span>
+            <span class="val" id="valGlowBlur">12px</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderGlowBlur" min="4" max="25" value="12">
+        </div>
+      </div>
+
+      <!-- Group 3: Keyboard Colors -->
+      <div class="control-group">
+        <div class="color-panel-title">Keyboard Color Settings</div>
+        <div class="color-picker-grid">
+          <div class="color-option">
+            <span>Case / Frame</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorCase" value="#1f1f23">
+            </div>
+          </div>
+          <div class="color-option">
+            <span>Base Keycaps</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorBaseKeys" value="#27272a">
+            </div>
+          </div>
+          <div class="color-option">
+            <span>Accent Keycaps</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorAccentKeys" value="#f59e0b">
+            </div>
+          </div>
+          <div class="color-option">
+            <span>Pulse Glow</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorGlow" value="#f59e0b">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Group 4: 3D Scene Controls -->
+      <div class="control-group">
+        <div class="control-title">3D Camera & Orientation</div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Tilt (Pitch)</span>
+            <span class="val" id="valTiltX">55°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderTiltX" min="20" max="85" value="55">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Rotation (Yaw)</span>
+            <span class="val" id="valTiltZ">-30°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderTiltZ" min="-180" max="180" value="-30">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Roll (Horizontal Angle)</span>
+            <span class="val" id="valTiltY">0°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderTiltY" min="-45" max="45" value="0">
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: 3D Viewport -->
+    <div class="keyboard-viewport">
+      <div class="keyboard-scene" id="boardScene">
+        
+        <!-- Casing & Plate -->
+        <div class="keyboard-case">
+          <div class="case-top"></div>
+          <div class="case-front"></div>
+          <div class="case-right"></div>
+        </div>
+        <div class="switch-plate"></div>
+
+        <!-- Keys Container -->
+        <div id="keysWrapper" style="transform-style: preserve-3d;"></div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 
+    💡 3D 키보드 동작 메커니즘 (Technical Mechanics Explanations)
+    
+    1. 실시간 Z축 깊이 제어:
+       - 평소에 키캡은 translate3d(X, Y, 10px)에 머물며 붕 떠 있는 상태로 정렬됩니다.
+       - 마우스 호버 혹은 키가 입력되면 밀리초 단위로 Z축 좌표를 translate3d(X, Y, 2px)로 낮추어 입체적인 눌림 효과를 연출합니다.
+       
+    2. 실시간 오디오 합성 (Web Audio API):
+       - 외부 MP3 파일 로드 없이 브라우저 자체의 오디오 오실레이터(Oscillator)와 화이트 노이즈 밴드패스 필터를 사용합니다.
+       - 실제 기계식 스위치(청축, 갈축, 적축) 특유의 클릭 및 접점 마찰 소리를 즉석에서 주파수 감쇄를 처리해 합성해 냅니다.
+       
+    3. 등각 투영 최적화:
+       - 3차원 투영 각도로 인해 보이지 않는 키캡의 뒷면과 왼쪽 면을 완전히 배제합니다.
+       - 오직 상단(Top), 전면(Front), 우측면(Right)의 3개 면으로만 3D 육면체를 렌더링함으로써 초당 60프레임 이상의 부드러운 애니메이션과 뛰어난 브라우저 렌더링 효율을 보장합니다.
+  -->
+
+  <script>
+    // 60% Layout Keys definition
+    // width: in units (1u = 50px). Standard gap = 6px.
+    const gap = 6;
+    const uSize = 50;
+
+    const layout = [
+      // Row 0
+      [
+        { code: 'Escape', label: 'ESC', w: 1, type: 'accent' },
+        { code: 'Digit1', label: '1', w: 1 },
+        { code: 'Digit2', label: '2', w: 1 },
+        { code: 'Digit3', label: '3', w: 1 },
+        { code: 'Digit4', label: '4', w: 1 },
+        { code: 'Digit5', label: '5', w: 1 },
+        { code: 'Digit6', label: '6', w: 1 },
+        { code: 'Digit7', label: '7', w: 1 },
+        { code: 'Digit8', label: '8', w: 1 },
+        { code: 'Digit9', label: '9', w: 1 },
+        { code: 'Digit0', label: '0', w: 1 },
+        { code: 'Minus', label: '-', w: 1 },
+        { code: 'Equal', label: '=', w: 1 },
+        { code: 'Backspace', label: '←', w: 2, type: 'accent' }
+      ],
+      // Row 1
+      [
+        { code: 'Tab', label: 'TAB', w: 1.5 },
+        { code: 'KeyQ', label: 'Q', w: 1 },
+        { code: 'KeyW', label: 'W', w: 1 },
+        { code: 'KeyE', label: 'E', w: 1 },
+        { code: 'KeyR', label: 'R', w: 1 },
+        { code: 'KeyT', label: 'T', w: 1 },
+        { code: 'KeyY', label: 'Y', w: 1 },
+        { code: 'KeyU', label: 'U', w: 1 },
+        { code: 'KeyI', label: 'I', w: 1 },
+        { code: 'KeyO', label: 'O', w: 1 },
+        { code: 'KeyP', label: 'P', w: 1 },
+        { code: 'BracketLeft', label: '[', w: 1 },
+        { code: 'BracketRight', label: ']', w: 1 },
+        { code: 'Backslash', label: '\\', w: 1.5 }
+      ],
+      // Row 2
+      [
+        { code: 'CapsLock', label: 'CAPS', w: 1.75 },
+        { code: 'KeyA', label: 'A', w: 1 },
+        { code: 'KeyS', label: 'S', w: 1 },
+        { code: 'KeyD', label: 'D', w: 1 },
+        { code: 'KeyF', label: 'F', w: 1 },
+        { code: 'KeyG', label: 'G', w: 1 },
+        { code: 'KeyH', label: 'H', w: 1 },
+        { code: 'KeyJ', label: 'J', w: 1 },
+        { code: 'KeyK', label: 'K', w: 1 },
+        { code: 'KeyL', label: 'L', w: 1 },
+        { code: 'Semicolon', label: ';', w: 1 },
+        { code: 'Quote', label: '\'', w: 1 },
+        { code: 'Enter', label: 'ENTER', w: 2.25, type: 'accent' }
+      ],
+      // Row 3
+      [
+        { code: 'ShiftLeft', label: 'SHIFT', w: 2.25 },
+        { code: 'KeyZ', label: 'Z', w: 1 },
+        { code: 'KeyX', label: 'X', w: 1 },
+        { code: 'KeyC', label: 'C', w: 1 },
+        { code: 'KeyV', label: 'V', w: 1 },
+        { code: 'KeyB', label: 'B', w: 1 },
+        { code: 'KeyN', label: 'N', w: 1 },
+        { code: 'KeyM', label: 'M', w: 1 },
+        { code: 'Comma', label: ',', w: 1 },
+        { code: 'Period', label: '.', w: 1 },
+        { code: 'Slash', label: '/', w: 1 },
+        { code: 'ShiftRight', label: 'SHIFT', w: 2.75 }
+      ],
+      // Row 4
+      [
+        { code: 'ControlLeft', label: 'CTRL', w: 1.25 },
+        { code: 'MetaLeft', label: 'WIN', w: 1.25 },
+        { code: 'AltLeft', label: 'ALT', w: 1.25 },
+        { code: 'Space', label: '', w: 6.25 },
+        { code: 'AltRight', label: 'ALT', w: 1.25 },
+        { code: 'MetaRight', label: 'WIN', w: 1.25 },
+        { code: 'ContextMenu', label: 'FN', w: 1.25 },
+        { code: 'ControlRight', label: 'CTRL', w: 1.25 }
+      ]
+    ];
+
+    // Audio Synthesis & State variables
+    let audioCtx = null;
+    let switchType = 'blue'; // 'blue', 'red', 'clicky'
+    let backlightMode = 'pulse'; // 'pulse', 'rgb', 'off'
+    let volume = 0.7;
+    let rgbHueOffset = 0;
+    let rgbSpeed = 4.0;
+    let tiltX = 55;
+    let tiltZ = -30;
+    let tiltY = 0;
+    let isHovering = false;
+
+    // Create Audio Context on first interaction
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    // Synth Mechanical Keyboard Sound
+    function playSwitchSound() {
+      initAudio();
+      if (!audioCtx) return;
+
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+
+      osc.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      const time = audioCtx.currentTime;
+
+      if (switchType === 'blue') {
+        // 갈축 (Tactile): Medium clack, round tactile feel
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, time);
+        osc.frequency.exponentialRampToValueAtTime(40, time + 0.08);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, time);
+        filter.Q.setValueAtTime(2, time);
+
+        gainNode.gain.setValueAtTime(0.3 * volume, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01 * volume, time + 0.09);
+
+        osc.start(time);
+        osc.stop(time + 0.09);
+
+      } else if (switchType === 'red') {
+        // 적축 (Linear): Deep thock, smooth without click
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(110, time);
+        osc.frequency.exponentialRampToValueAtTime(20, time + 0.12);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(300, time);
+
+        gainNode.gain.setValueAtTime(0.4 * volume, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01 * volume, time + 0.12);
+
+        osc.start(time);
+        osc.stop(time + 0.13);
+
+      } else if (switchType === 'clicky') {
+        // 청축 (Clicky): High pitch click + clack
+        // Sound 1: Click (high pitch click)
+        const clickOsc = audioCtx.createOscillator();
+        const clickGain = audioCtx.createGain();
+        clickOsc.type = 'sine';
+        clickOsc.frequency.setValueAtTime(3200, time);
+        clickOsc.connect(clickGain);
+        clickGain.connect(audioCtx.destination);
+        clickGain.gain.setValueAtTime(0.08 * volume, time);
+        clickGain.gain.exponentialRampToValueAtTime(0.001 * volume, time + 0.02);
+        clickOsc.start(time);
+        clickOsc.stop(time + 0.02);
+
+        // Sound 2: Deep clack
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160, time);
+        osc.frequency.exponentialRampToValueAtTime(50, time + 0.06);
+
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1000, time);
+
+        gainNode.gain.setValueAtTime(0.25 * volume, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01 * volume, time + 0.07);
+
+        osc.start(time);
+        osc.stop(time + 0.07);
+      }
+    }
+
+    // Render 3D Keyboard DOM Elements
+    const keysWrapper = document.getElementById('keysWrapper');
+    const keysMap = {}; // Maps event.code to key element
+
+    // Build the grid
+    let currentY = 0;
+    layout.forEach((row, rowIndex) => {
+      let currentX = 0;
+      row.forEach((key) => {
+        const width = key.w * uSize + (key.w - 1) * gap;
+        const height = uSize;
+        
+        // Key Container
+        const keyEl = document.createElement('div');
+        keyEl.className = 'key-3d';
+        if (key.type === 'accent') {
+          keyEl.classList.add('key-accent-style');
+        }
+        
+        // Positioning (handled via CSS variables to allow customization)
+        keyEl.style.width = `${width}px`;
+        keyEl.style.height = `${height}px`;
+        keyEl.style.setProperty('--kw', `${width}px`);
+        keyEl.style.setProperty('--kh', `${height}px`);
+        keyEl.style.setProperty('--kx', `${currentX}px`);
+        keyEl.style.setProperty('--ky', `${currentY}px`);
+        
+        // 1. Underglow lighting plane
+        const underglow = document.createElement('div');
+        underglow.className = 'key-underglow';
+        // Assign a base hue for dynamic RGB wave calculation
+        const hueBase = (currentX / 8.5) + (currentY / 3);
+        underglow.style.setProperty('--base-hue', `${hueBase * 60}`);
+        keyEl.appendChild(underglow);
+
+        // 2. Top face (with legend)
+        const topFace = document.createElement('div');
+        topFace.className = 'key-face key-top';
+        topFace.textContent = key.label;
+        keyEl.appendChild(topFace);
+
+        // 3. Front face (thickness)
+        const frontFace = document.createElement('div');
+        frontFace.className = 'key-face key-front';
+        keyEl.appendChild(frontFace);
+
+        // 4. Right face (depth)
+        const rightFace = document.createElement('div');
+        rightFace.className = 'key-face key-right';
+        keyEl.appendChild(rightFace);
+
+        // Append to wrap
+        keysWrapper.appendChild(keyEl);
+        keysMap[key.code] = keyEl;
+
+        // Mouse click bindings
+        keyEl.addEventListener('mousedown', () => {
+          pressKey(key.code);
+        });
+        keyEl.addEventListener('mouseup', () => {
+          releaseKey(key.code);
+        });
+        keyEl.addEventListener('mouseleave', () => {
+          releaseKey(key.code);
+        });
+
+        currentX += width + gap;
+      });
+      currentY += uSize + gap;
+    });
+
+    // Handle Keyboard Events
+    window.addEventListener('keydown', (e) => {
+      // Focus on input box if user types outside, but let them type normally
+      if (document.activeElement !== document.getElementById('typingTest')) {
+        document.getElementById('typingTest').focus();
+      }
+      pressKey(e.code);
+    });
+
+    window.addEventListener('keyup', (e) => {
+      releaseKey(e.code);
+    });
+
+    // Press down animation trigger
+    function pressKey(code) {
+      const keyEl = keysMap[code];
+      if (keyEl && !keyEl.classList.contains('pressed')) {
+        keyEl.classList.add('pressed');
+        playSwitchSound();
+      }
+    }
+
+    // Release animation trigger
+    function releaseKey(code) {
+      const keyEl = keysMap[code];
+      if (keyEl) {
+        keyEl.classList.remove('pressed');
+      }
+    }
+
+    // Switch Options Actions
+    function setSwitchType(type) {
+      switchType = type;
+      
+      document.getElementById('btn-sw-brown').classList.remove('active');
+      document.getElementById('btn-sw-red').classList.remove('active');
+      document.getElementById('btn-sw-blue').classList.remove('active');
+      
+      if (type === 'blue') {
+        document.getElementById('btn-sw-brown').classList.add('active');
+      } else if (type === 'red') {
+        document.getElementById('btn-sw-red').classList.add('active');
+      } else if (type === 'clicky') {
+        document.getElementById('btn-sw-blue').classList.add('active');
+      }
+    }
+
+    // Backlight Options Actions
+    function setBacklight(mode) {
+      backlightMode = mode;
+      
+      // Update UI active buttons
+      document.getElementById('btn-glow-pulse').classList.remove('active');
+      document.getElementById('btn-glow-rgb').classList.remove('active');
+      document.getElementById('btn-glow-off').classList.remove('active');
+
+      const scene = document.getElementById('boardScene');
+      scene.classList.remove('rgb-active');
+      scene.classList.remove('pulse-active');
+      scene.classList.remove('backlight-off');
+
+      if (mode === 'pulse') {
+        document.getElementById('btn-glow-pulse').classList.add('active');
+        scene.classList.add('pulse-active');
+      } else if (mode === 'rgb') {
+        document.getElementById('btn-glow-rgb').classList.add('active');
+        scene.classList.add('rgb-active');
+      } else {
+        document.getElementById('btn-glow-off').classList.add('active');
+        scene.classList.add('backlight-off');
+      }
+
+      // Update RGB Wave Speed slider group visibility
+      const rgbSpeedGroup = document.getElementById('groupRgbSpeed');
+      if (rgbSpeedGroup) {
+        rgbSpeedGroup.style.display = (mode === 'rgb') ? 'flex' : 'none';
+      }
+    }
+
+    // Color Pickers Listeners & Helpers
+    function darkenHex(hex, factor = 0.6) {
+      let c = hex.replace("#", "");
+      let r = parseInt(c.substring(0, 2), 16);
+      let g = parseInt(c.substring(2, 4), 16);
+      let b = parseInt(c.substring(4, 6), 16);
+      
+      r = Math.floor(r * factor);
+      g = Math.floor(g * factor);
+      b = Math.floor(b * factor);
+      
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function hexToRgba(hex, alpha = 0.4) {
+      let c = hex.replace("#", "");
+      let r = parseInt(c.substring(0, 2), 16);
+      let g = parseInt(c.substring(2, 4), 16);
+      let b = parseInt(c.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    document.getElementById('colorCase').addEventListener('input', (e) => {
+      const color = e.target.value;
+      document.documentElement.style.setProperty('--case-top', color);
+      document.documentElement.style.setProperty('--case-side', darkenHex(color, 0.6));
+    });
+
+    document.getElementById('colorBaseKeys').addEventListener('input', (e) => {
+      const color = e.target.value;
+      document.documentElement.style.setProperty('--key-base', color);
+      document.documentElement.style.setProperty('--key-base-side', darkenHex(color, 0.65));
+    });
+
+    document.getElementById('colorAccentKeys').addEventListener('input', (e) => {
+      const color = e.target.value;
+      document.documentElement.style.setProperty('--key-accent', color);
+      document.documentElement.style.setProperty('--key-accent-side', darkenHex(color, 0.7));
+    });
+
+    document.getElementById('colorGlow').addEventListener('input', (e) => {
+      const color = e.target.value;
+      document.documentElement.style.setProperty('--neon-glow', hexToRgba(color, 0.4));
+      document.documentElement.style.setProperty('--accent-gold-glow', hexToRgba(color, 0.3));
+    });
+
+    // Custom Sliders Event Listeners
+    document.getElementById('sliderVolume').addEventListener('input', (e) => {
+      volume = parseInt(e.target.value) / 100;
+      document.getElementById('valVolume').textContent = `${e.target.value}%`;
+    });
+
+    document.getElementById('sliderKeyHeight').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valKeyHeight').textContent = `${val}px`;
+      document.documentElement.style.setProperty('--key-z-default', `${val}px`);
+      document.documentElement.style.setProperty('--key-extrusion', `${val + 2}px`);
+    });
+
+    document.getElementById('sliderGlowIntensity').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value) / 100;
+      document.getElementById('valGlowIntensity').textContent = val.toFixed(1);
+      document.documentElement.style.setProperty('--glow-intensity', val);
+    });
+
+    document.getElementById('sliderRgbSpeed').addEventListener('input', (e) => {
+      rgbSpeed = parseFloat(e.target.value);
+      document.getElementById('valRgbSpeed').textContent = rgbSpeed.toFixed(1);
+    });
+
+    document.getElementById('sliderGlowBlur').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valGlowBlur').textContent = `${val}px`;
+      document.documentElement.style.setProperty('--glow-blur', `${val}px`);
+    });
+
+    // 3D Camera Rotation handlers
+    function updateKeyboardTransform() {
+      const scene = document.getElementById('boardScene');
+      let rx = tiltX;
+      let rz = tiltZ;
+      let ry = tiltY;
+      
+      if (isHovering) {
+        rx -= 4; // slight automatic tilt up on mouse hover
+        rz += 3; // slight automatic rotate on mouse hover
+      }
+      
+      scene.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg)`;
+    }
+
+    document.getElementById('sliderTiltX').addEventListener('input', (e) => {
+      tiltX = parseInt(e.target.value);
+      document.getElementById('valTiltX').textContent = `${tiltX}°`;
+      updateKeyboardTransform();
+    });
+
+    document.getElementById('sliderTiltZ').addEventListener('input', (e) => {
+      tiltZ = parseInt(e.target.value);
+      document.getElementById('valTiltZ').textContent = `${tiltZ}°`;
+      updateKeyboardTransform();
+    });
+
+    document.getElementById('sliderTiltY').addEventListener('input', (e) => {
+      tiltY = parseInt(e.target.value);
+      document.getElementById('valTiltY').textContent = `${tiltY}°`;
+      updateKeyboardTransform();
+    });
+
+    // Mouse Hover listener to add dynamic viewport hover tilt
+    const viewport = document.querySelector('.keyboard-viewport');
+    viewport.addEventListener('mouseenter', () => {
+      isHovering = true;
+      updateKeyboardTransform();
+    });
+    viewport.addEventListener('mouseleave', () => {
+      isHovering = false;
+      updateKeyboardTransform();
+    });
+
+    // Dynamic RGB Wave Animation loop
+    function animateRGB() {
+      if (backlightMode === 'rgb') {
+        rgbHueOffset = (rgbHueOffset + rgbSpeed) % 360;
+        document.documentElement.style.setProperty('--rgb-hue-offset', rgbHueOffset);
+      }
+      requestAnimationFrame(animateRGB);
+    }
+
+    // Initialize styling default state
+    setBacklight('pulse');
+    updateKeyboardTransform();
+    requestAnimationFrame(animateRGB);
+  </script>
+</body>
+</html>

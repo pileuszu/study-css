@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive 3D Isometric Monitor Simulator</title>
+  <!-- Modern Fonts (Pretendard for Korean, Plus Jakarta Sans & JetBrains Mono for English English) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  
+  <style>
+    /* Design Tokens */
+    :root {
+      --bg-dark: #0c0c0e;
+      --bg-panel: #161619;
+      --border-color: #2c2c35;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --key-accent: #3b82f6; /* Accent color - Blue */
+      --neon-glow: rgba(59, 130, 246, 0.4);
+      --font-sans: 'Pretendard', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Pretendard', monospace;
+      
+      /* Monitor Default Design Colors */
+      --bezel-color: #1f1f23;
+      --stand-color: #2e2e35;
+      --stand-color-side: #18181b;
+      --power-led-color: #10b981; /* Green when ON */
+
+      /* Custom Display Parameters */
+      --screen-brightness: 1.0;
+      --glow-intensity: 1.0;
+      --glow-blur: 40px;
+      --glow-color: rgba(59, 130, 246, 0.4);
+
+      /* 3D Geometry States */
+      --monitor-height: 120px;
+      --monitor-tilt-x: -8deg;
+      --monitor-tilt-y: 0deg;
+      --bezel-width: 12px;
+
+      /* 3D Camera coordinates */
+      --cam-pitch: 25deg;
+      --cam-yaw: -30deg;
+      --cam-roll: 0deg;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 20px;
+    }
+
+    /* Dashboard Layout wrapper */
+    .dashboard-container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      max-width: 1350px;
+      gap: 30px;
+      margin-bottom: 40px;
+      padding: 0 20px;
+    }
+
+    /* Sidebar controls */
+    .control-panel {
+      width: 420px;
+      flex-shrink: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 10;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .control-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Switch Sound Type Lights / Indicator dot */
+    .switch-light {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--key-accent);
+      box-shadow: 0 0 6px var(--neon-glow);
+    }
+
+    .switch-options {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-option {
+      flex: 1;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      color: var(--text-secondary);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-option:hover {
+      background: #3f3f46;
+      color: #fff;
+    }
+
+    .btn-option.active {
+      background: var(--key-accent);
+      border-color: var(--key-accent);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 0 12px var(--neon-glow);
+    }
+
+    /* Sliders styling */
+    .control-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #19191c;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .slider-header span.val {
+      color: var(--key-accent);
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    .custom-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: #3f3f46;
+      outline: none;
+    }
+
+    .custom-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--key-accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--neon-glow);
+      transition: transform 0.1s;
+    }
+
+    .custom-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Color customizer styling */
+    .color-panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .color-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .color-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1f1f23;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .color-option span {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .color-input-wrapper {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid #3f3f46;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+
+    .color-input {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    /* Typing Test Input Box */
+    .typing-box {
+      width: 100%;
+      background: #09090b;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      color: #fff;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .typing-box:focus {
+      border-color: var(--key-accent);
+      box-shadow: 0 0 8px var(--neon-glow);
+    }
+
+    /* 3D Viewport layout */
+    .keyboard-viewport {
+      flex-grow: 1;
+      height: 680px;
+      position: sticky;
+      top: max(24px, calc(50vh - 340px)); /* Center vertically when scrolling, clamp at 24px */
+      align-self: start;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1500px;
+      background: #09090b; /* Studio preview backdrop */
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+      overflow: hidden;
+    }
+
+    /* 3D Scene Container */
+    .monitor-scene {
+      position: relative;
+      width: 800px;
+      height: 600px;
+      transform-style: preserve-3d;
+      transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* --- 3D Monitor Elements --- */
+    
+    /* 1. Base foot */
+    .base-3d {
+      position: absolute;
+      width: 220px;
+      height: 160px;
+      left: calc(50% - 110px);
+      top: calc(50% - 80px + 60px); /* Position slightly forward */
+      transform-style: preserve-3d;
+      transform: translateZ(0px);
+    }
+
+    .base-top {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: var(--stand-color);
+      border-radius: 8px;
+      transform: translateZ(8px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.05),
+                  0 8px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    .base-front {
+      position: absolute;
+      width: 100%;
+      height: 8px;
+      background: var(--stand-color-side);
+      transform-origin: top center;
+      transform: translate3d(0, 160px, 8px) rotateX(-90deg);
+      border-radius: 0 0 8px 8px;
+    }
+
+    .base-right {
+      position: absolute;
+      width: 8px;
+      height: 100%;
+      background: var(--stand-color-side);
+      transform-origin: left center;
+      transform: translate3d(220px, 0, 8px) rotateY(90deg);
+      border-radius: 0 8px 8px 0;
+      filter: brightness(0.8);
+    }
+
+    /* 2. Stand Pillar */
+    .pillar-3d {
+      position: absolute;
+      width: 44px;
+      height: 36px;
+      left: calc(50% - 22px);
+      top: calc(50% - 18px + 60px);
+      transform-style: preserve-3d;
+      transform: translate3d(0, 0, 8px);
+    }
+
+    .pillar-front {
+      position: absolute;
+      width: 100%;
+      height: var(--monitor-height);
+      background: var(--stand-color);
+      transform-origin: bottom center;
+      transform: translate3d(0, -36px, 0) rotateX(-90deg);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .pillar-right {
+      position: absolute;
+      width: 36px;
+      height: var(--monitor-height);
+      background: var(--stand-color-side);
+      transform-origin: bottom left;
+      transform: translate3d(44px, -36px, 0) rotateY(90deg) rotateX(-90deg);
+      filter: brightness(0.85);
+    }
+
+    .pillar-left {
+      position: absolute;
+      width: 36px;
+      height: var(--monitor-height);
+      background: var(--stand-color-side);
+      transform-origin: bottom left;
+      transform: translate3d(0, -36px, 0) rotateY(90deg) rotateX(-90deg);
+      filter: brightness(0.7);
+    }
+
+    .pillar-top {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: var(--stand-color);
+      transform: translateZ(var(--monitor-height));
+    }
+
+    /* 3. Monitor Display Panel Box */
+    .monitor-panel-3d {
+      position: absolute;
+      width: 520px;
+      height: 320px;
+      left: calc(50% - 260px);
+      top: calc(50% - 160px + 60px);
+      transform-style: preserve-3d;
+      /* Stand pivot coordinate: height is added dynamically */
+      transform: translate3d(0, -18px, calc(var(--monitor-height) + 12px)) 
+                 rotateX(-90deg) 
+                 rotateY(var(--monitor-tilt-y)) 
+                 rotateX(var(--monitor-tilt-x));
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Common face style */
+    .monitor-face {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    /* Front Screen Face */
+    .monitor-front {
+      width: 100%;
+      height: 100%;
+      background: var(--bezel-color);
+      border-top: var(--bezel-width) solid var(--bezel-color);
+      border-left: var(--bezel-width) solid var(--bezel-color);
+      border-right: var(--bezel-width) solid var(--bezel-color);
+      border-bottom: calc(var(--bezel-width) + 12px) solid var(--bezel-color);
+      border-radius: 12px;
+      transform: translateZ(12px);
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.05),
+                  0 10px 30px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+    }
+
+    /* Casing Back Face */
+    .monitor-back {
+      width: 100%;
+      height: 100%;
+      background: #141416;
+      border-radius: 12px;
+      transform: translateZ(-12px) rotateY(180deg);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .back-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.1);
+      font-size: 1.5rem;
+      letter-spacing: 0.2em;
+    }
+
+    /* Casing Extrusion Sides */
+    .monitor-side {
+      position: absolute;
+      background: #18181b;
+      filter: brightness(0.9);
+    }
+
+    .monitor-top-side {
+      width: 520px;
+      height: 24px;
+      left: 0;
+      top: calc(50% - 12px);
+      transform: translateY(-160px) rotateX(90deg);
+      border-radius: 4px 4px 0 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .monitor-bottom-side {
+      width: 520px;
+      height: 24px;
+      left: 0;
+      top: calc(50% - 12px);
+      transform: translateY(160px) rotateX(-90deg);
+      border-radius: 0 0 4px 4px;
+    }
+
+    .monitor-left-side {
+      width: 24px;
+      height: 320px;
+      left: calc(50% - 12px);
+      top: 0;
+      transform: translateX(-260px) rotateY(-90deg);
+      filter: brightness(0.75);
+    }
+
+    .monitor-right-side {
+      width: 24px;
+      height: 320px;
+      left: calc(50% - 12px);
+      top: 0;
+      transform: translateX(260px) rotateY(90deg);
+      filter: brightness(0.85);
+    }
+
+    /* Screen display container inside front bezel */
+    .screen-display {
+      width: 100%;
+      height: 100%;
+      background: var(--screen-bg);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.85);
+      transition: background-color 0.3s;
+    }
+
+    /* Screen Power Off cover */
+    .screen-display.power-off::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #09090b;
+      opacity: 0.96;
+      z-index: 20;
+      transition: opacity 0.3s;
+    }
+
+    /* Glossy specular reflection overlay */
+    .screen-gloss {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 55%);
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    /* Screen content modules */
+    .screen-content {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: none;
+      filter: brightness(var(--screen-brightness));
+      opacity: 0.95;
+    }
+
+    .screen-content.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 1. IDE Code Editor Style */
+    .mode-code-content {
+      background: #111113;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #e4e4e7;
+      text-align: left;
+      overflow: hidden;
+    }
+
+    .ide-tab {
+      background: #1f1f23;
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      border-radius: 4px 4px 0 0;
+      display: inline-block;
+      margin-bottom: 8px;
+      color: var(--key-accent);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      width: fit-content;
+    }
+
+    .mode-code-content pre {
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    .keyword { color: #f43f5e; font-weight: bold; }
+    .class { color: #38bdf8; }
+    .string { color: #fbbf24; }
+    .number { color: #c084fc; }
+    .method { color: #34d399; }
+
+    /* 2. Command Line Terminal Style */
+    .mode-terminal-content {
+      background: #030303;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #22c55e;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: inset 0 0 15px rgba(0,255,0,0.1);
+    }
+
+    .terminal-header {
+      color: #15803d;
+      border-bottom: 1px solid #166534;
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .terminal-body {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+    }
+
+    .term-green { color: #22c55e; }
+    .term-dim { color: #16a34a; opacity: 0.7; }
+    .term-green-bright { color: #4ade80; text-shadow: 0 0 4px #22c55e; }
+    .term-red { color: #ef4444; }
+    .term-cursor {
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* 3. Hi-Tech dashboard / Sci-fi HUD Style */
+    .mode-visual-content {
+      background: #06060b;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #fff;
+    }
+
+    .visual-grid {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-grow: 1;
+    }
+
+    .visual-ring {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: 4px solid #1e1b4b;
+      border-top-color: var(--key-accent);
+      border-right-color: #ec4899;
+      animation: spin 3s linear infinite;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    .visual-stats {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+    }
+
+    .stat-row span {
+      width: 30px;
+    }
+
+    .bar {
+      flex-grow: 1;
+      height: 6px;
+      background: #1e293b;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-left: 8px;
+    }
+
+    .fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--key-accent), #ec4899);
+      border-radius: 3px;
+      animation: pulseBar 2s infinite alternate ease-in-out;
+    }
+
+    @keyframes pulseBar {
+      0% { filter: brightness(1.0); }
+      100% { filter: brightness(1.3); }
+    }
+
+    .visual-wave {
+      display: flex;
+      align-items: flex-end;
+      height: 50px;
+      gap: 4px;
+      border-top: 1px dashed #1e293b;
+      padding-top: 8px;
+      justify-content: space-between;
+    }
+
+    .wave-bar {
+      width: 10%;
+      height: var(--h);
+      background: linear-gradient(to top, var(--key-accent), #8b5cf6);
+      border-radius: 2px 2px 0 0;
+      animation: wave 1.2s infinite alternate ease-in-out;
+      animation-delay: var(--d);
+    }
+
+    @keyframes wave {
+      0% { height: 10%; }
+      100% { height: var(--h); }
+    }
+
+    /* indicator led logic */
+    .monitor-led {
+      position: absolute;
+      right: 24px;
+      bottom: 4px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--power-led-color);
+      box-shadow: 0 0 6px var(--power-led-color);
+      transition: background-color 0.3s, box-shadow 0.3s;
+      z-index: 15;
+    }
+
+    /* Ambilight wall glow */
+    .monitor-backglow {
+      position: absolute;
+      left: -100px;
+      top: -100px;
+      width: calc(100% + 200px);
+      height: calc(100% + 200px);
+      background: var(--glow-color);
+      filter: blur(var(--glow-blur)) brightness(var(--glow-intensity));
+      opacity: 0;
+      transform: translateZ(-20px);
+      transition: opacity 0.3s, background-color 0.3s, box-shadow 0.3s;
+      pointer-events: none;
+      border-radius: 20px;
+    }
+
+    .pulse-active .monitor-backglow {
+      opacity: calc(0.7 * var(--glow-intensity));
+      background-color: var(--glow-color);
+      box-shadow: 0 0 calc(60px * var(--glow-intensity)) var(--glow-color);
+    }
+
+    .rgb-active .monitor-backglow {
+      opacity: calc(0.85 * var(--glow-intensity));
+      background: linear-gradient(45deg, #ff007f, #7f00ff, #00f0ff, #ff007f);
+      background-size: 400% 400%;
+      animation: gradient-shift 6s infinite linear;
+      box-shadow: 0 0 calc(65px * var(--glow-intensity)) rgba(139, 92, 246, 0.45);
+    }
+
+    @keyframes gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .backlight-off .monitor-backglow {
+      display: none !important;
+    }
+
+    /* Tech description card below layout */
+    .info-panel {
+      width: 100%;
+      max-width: 1310px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 50px;
+      z-index: 10;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .info-panel h3 {
+      font-size: 1.25rem;
+      margin-bottom: 15px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .info-panel p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .info-panel ul {
+      margin-left: 20px;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.8;
+    }
+
+    .info-panel strong {
+      color: var(--text-primary);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--key-accent);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 0 0 var(--neon-glow);
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+      }
+    }
+
+    /* Screen Gradient shift animation for RGB Wave display mode */
+    .rgb-wave-display {
+      background: linear-gradient(45deg, #ff007f, #7f00ff, #00f0ff, #ff007f) !important;
+      background-size: 400% 400% !important;
+      animation: gradient-shift 6s infinite linear;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-container {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .control-panel {
+        width: 100%;
+        max-width: 858px;
+      }
+      
+      .keyboard-viewport {
+        width: 100%;
+        max-width: 858px;
+        height: 520px;
+      }
+      
+      .info-panel {
+        max-width: 858px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Dashboard Side-by-Side Wrapper -->
+  <div class="dashboard-container">
+    
+    <!-- Left Column: Control Panel Sidebar -->
+    <div class="control-panel">
+      <!-- Text Input -->
+      <div class="control-group">
+        <div class="control-title">Type here to test screen display:</div>
+        <input type="text" class="typing-box" placeholder="Type here and press Enter to stream text..." id="typingTest" autofocus>
+      </div>
+
+      <!-- Group 1: Display & Screen Power -->
+      <div class="control-group">
+        <div class="control-title">
+          <span class="switch-light"></span> Display Controls
+        </div>
+        <div class="switch-options">
+          <button class="btn-option active" id="btn-power" onclick="togglePower()">Power: ON</button>
+          <button class="btn-option" id="btn-vol" onclick="toggleMute()">Mute Beep</button>
+        </div>
+        <div class="switch-options">
+          <button class="btn-option active" id="btn-mode-code" onclick="setScreenMode('code')">Code Editor</button>
+          <button class="btn-option" id="btn-mode-terminal" onclick="setScreenMode('terminal')">Terminal</button>
+          <button class="btn-option" id="btn-mode-visual" onclick="setScreenMode('visual')">HUD Status</button>
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Screen Brightness</span>
+            <span class="val" id="valBrightness">1.0</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderBrightness" min="2" max="15" value="10">
+        </div>
+      </div>
+
+      <!-- Group 2: Backlight & Wall Glow -->
+      <div class="control-group">
+        <div class="control-title">Ambilight & Glow</div>
+        <div class="switch-options">
+          <button class="btn-option active" id="btn-glow-pulse" onclick="setBacklight('pulse')">Match Mode</button>
+          <button class="btn-option" id="btn-glow-rgb" onclick="setBacklight('rgb')">RGB Cycle</button>
+          <button class="btn-option" id="btn-glow-off" onclick="setBacklight('off')">Off</button>
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Glow Intensity</span>
+            <span class="val" id="valGlowIntensity">1.0</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderGlowIntensity" min="10" max="200" value="100">
+        </div>
+        <div class="control-slider-group" id="groupGlowBlur">
+          <div class="slider-header">
+            <span>Glow Blur Radius</span>
+            <span class="val" id="valGlowBlur">40px</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderGlowBlur" min="10" max="60" value="40">
+        </div>
+      </div>
+
+      <!-- Group 3: 3D Monitor Stand Mechanics -->
+      <div class="control-group">
+        <div class="control-title">Monitor Stand & Geometry</div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Stand Height Lift</span>
+            <span class="val" id="valHeight">120px</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderHeight" min="70" max="200" value="120">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Screen Tilt (Pitch)</span>
+            <span class="val" id="valTiltX">-8°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderTiltX" min="-20" max="20" value="-8">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Screen Swivel (Yaw)</span>
+            <span class="val" id="valTiltY">0°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderTiltY" min="-30" max="30" value="0">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Bezel Thickness</span>
+            <span class="val" id="valBezel">12px</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderBezel" min="4" max="24" value="12">
+        </div>
+      </div>
+
+      <!-- Group 4: 3D Camera Controls -->
+      <div class="control-group">
+        <div class="control-title">3D Camera & Orientation</div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Camera Pitch</span>
+            <span class="val" id="valCamX">25°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderCamX" min="10" max="75" value="25">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Camera Yaw</span>
+            <span class="val" id="valCamZ">-30°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderCamZ" min="-180" max="180" value="-30">
+        </div>
+        <div class="control-slider-group">
+          <div class="slider-header">
+            <span>Camera Roll</span>
+            <span class="val" id="valCamY">0°</span>
+          </div>
+          <input type="range" class="custom-slider" id="sliderCamY" min="-45" max="45" value="0">
+        </div>
+      </div>
+
+      <!-- Group 5: Custom Colors -->
+      <div class="control-group">
+        <div class="color-panel-title">Custom Theme Colors</div>
+        <div class="color-picker-grid">
+          <div class="color-option">
+            <span>Bezel / Frame</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorBezel" value="#1f1f23">
+            </div>
+          </div>
+          <div class="color-option">
+            <span>Stand Body</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorStand" value="#2e2e35">
+            </div>
+          </div>
+          <div class="color-option">
+            <span>LED Color</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorLed" value="#10b981">
+            </div>
+          </div>
+          <div class="color-option">
+            <span>Backglow Solid</span>
+            <div class="color-input-wrapper">
+              <input type="color" class="color-input" id="colorGlow" value="#3b82f6">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: 3D Viewport -->
+    <div class="keyboard-viewport">
+      <!-- 3D Scene Wrapper -->
+      <div class="monitor-scene" id="monitorScene">
+        
+        <!-- Stand Base -->
+        <div class="base-3d">
+          <div class="base-top"></div>
+          <div class="base-front"></div>
+          <div class="base-right"></div>
+        </div>
+
+        <!-- Stand Pillar -->
+        <div class="pillar-3d">
+          <div class="pillar-front"></div>
+          <div class="pillar-right"></div>
+          <div class="pillar-left"></div>
+          <div class="pillar-top"></div>
+        </div>
+
+        <!-- Monitor Panel -->
+        <div class="monitor-panel-3d" id="monitorPanel">
+          <!-- Back Cover -->
+          <div class="monitor-face monitor-back">
+            <!-- Ambilight backglow inside the back cover so it sits behind it -->
+            <div class="monitor-backglow" id="backglow"></div>
+            <div class="back-logo">3D DISP</div>
+          </div>
+          <!-- Sides -->
+          <div class="monitor-side monitor-top-side"></div>
+          <div class="monitor-side monitor-bottom-side"></div>
+          <div class="monitor-side monitor-left-side"></div>
+          <div class="monitor-side monitor-right-side"></div>
+
+          <!-- Front Face (Screen + Bezel) -->
+          <div class="monitor-face monitor-front">
+            <div class="screen-display" id="screenDisplay">
+              <!-- Gloss Reflection Layer -->
+              <div class="screen-gloss"></div>
+              
+              <!-- Mode 1: Code Editor -->
+              <div class="screen-content mode-code-content active" id="modeCode">
+                <div class="ide-tab">index.js</div>
+                <pre><code class="language-js"><span class="keyword">const</span> display = <span class="keyword">new</span> <span class="class">3DDisplay</span>({
+  res: <span class="string">'8K IPS'</span>,
+  backlight: <span class="string">'ambilight'</span>,
+  hdr: <span class="keyword">true</span>
+});
+
+display.<span class="method">powerOn</span>();
+display.<span class="method">syncAmbientGlow</span>();
+display.<span class="method">setOrientation</span>(<span class="number">25</span>);</code></pre>
+              </div>
+
+              <!-- Mode 2: Retro Terminal -->
+              <div class="screen-content mode-terminal-content" id="modeTerminal">
+                <div class="terminal-header">bash - diagnostics terminal</div>
+                <div class="terminal-body" id="terminalBody">
+                  <div>$ systemctl status matrix.service</div>
+                  <div class="term-green">● matrix.service - 3D Simulation Engine</div>
+                  <div>   Loaded: loaded (/etc/systemd/system/matrix)</div>
+                  <div>   Active: <span class="term-green">active (running)</span> since Thu; 5s ago</div>
+                  <div>   Main PID: 1337 (engine)</div>
+                  <div class="term-dim">Jun 04 16:49: simulation engine initialized.</div>
+                  <div class="term-cursor">$ █</div>
+                </div>
+              </div>
+
+              <!-- Mode 3: Graphic Visualizer (Color Wave) -->
+              <div class="screen-content mode-visual-content" id="modeVisual">
+                <div class="visual-grid">
+                  <div class="visual-ring"></div>
+                  <div class="visual-stats">
+                    <div class="stat-row"><span>CPU</span><div class="bar"><div class="fill" style="width: 76%"></div></div></div>
+                    <div class="stat-row"><span>GPU</span><div class="bar"><div class="fill" style="width: 92%"></div></div></div>
+                    <div class="stat-row"><span>RAM</span><div class="bar"><div class="fill" style="width: 45%"></div></div></div>
+                  </div>
+                </div>
+                <div class="visual-wave">
+                  <div class="wave-bar" style="--h: 60%; --d: 0.1s"></div>
+                  <div class="wave-bar" style="--h: 80%; --d: 0.2s"></div>
+                  <div class="wave-bar" style="--h: 40%; --d: 0.3s"></div>
+                  <div class="wave-bar" style="--h: 90%; --d: 0.4s"></div>
+                  <div class="wave-bar" style="--h: 70%; --d: 0.5s"></div>
+                  <div class="wave-bar" style="--h: 50%; --d: 0.6s"></div>
+                  <div class="wave-bar" style="--h: 85%; --d: 0.7s"></div>
+                </div>
+              </div>
+
+            </div>
+            <!-- Indicator LED -->
+            <div class="monitor-led" id="powerLed"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Technical Explanation Details -->
+  <div class="info-panel">
+    <h3><span class="pulse-dot"></span> 3D 모니터 시뮬레이터 원리 (Technical Mechanics Explanations)</h3>
+    <p>
+      이 시뮬레이터는 웹 그래픽스 라이브러리(Three.js 등)의 도움 없이, 순수하게 브라우저 자체의 <strong>CSS 3D Transforms (preserve-3d)</strong> 성능과 <strong>Web Audio API</strong> 주파수 합성 능력을 응용해 설계되었습니다.
+    </p>
+    <ul>
+      <li>
+        <strong>1. 3D 구조적 조립 (3D Cuboid Assembly):</strong><br>
+        모니터 패널은 중앙 3D 레이어(`monitor-panel-3d`)를 축으로 하여 앞면(Screen), 뒷면(Casing Cover), 그리고 두께를 잇는 4개의 측면 판넬이 각각 `translate` 및 `rotate` 연산으로 정교하게 결합된 3차원 입체 육면체 구조입니다.
+      </li>
+      <li>
+        <strong>2. 물리적 다이나믹 피벗 조작 (Interactive Pivot Dynamics):</strong><br>
+        모니터 스탠드의 높이조절(Height Lift), 틸팅(Tilt - Pitch), 스위블(Swivel - Yaw) 동작은 CSS 변수(--monitor-height 등) 변경 시 실시간으로 Z축 변위 및 3D 회전 행렬 연산에 대입되어 키보드 조작 패널을 조절하듯 물리적인 모니터 외형이 왜곡 없이 실시간 구동됩니다.
+      </li>
+      <li>
+        <strong>3. 몰입형 앰비라이트 효과 (Ambilight Sync & Backglow):</strong><br>
+        모니터 뒤에 맺히는 백라이트 글래스 효과는 스크린의 현재 화면 모드(코드, 터미널, 그래픽)의 배경 그라데이션 및 색상 채도값과 동기화되어, 뒤쪽의 3차원 입체 가상 벽면에 부드러운 LED 간접 조명(Ambilight) 형태로 자연스럽게 연출됩니다.
+      </li>
+      <li>
+        <strong>4. 양방향 시뮬레이션 및 터미널 쉘 (Bilateral Shell Emulation):</strong><br>
+        테스트 입력 박스에 명령어를 입력(예: `help`, `status`, `matrix`, `ping`)하고 엔터를 입력하면, 모니터 스크린 속 터미널(Terminal) 모듈 내부 스크립트 엔진이 인풋을 가로채 쉘 출력을 시뮬레이션하는 완벽한 양방향 인터랙션을 지원합니다.
+      </li>
+    </ul>
+  </div>
+
+  <script>
+    // Audio Synthesis variables
+    let audioCtx = null;
+    let volume = 0.7;
+    let muteState = false;
+    let powerState = true; // ON by default
+    let currentScreenMode = 'code'; // 'code', 'terminal', 'visual'
+    let backlightMode = 'pulse'; // 'pulse', 'rgb', 'off'
+
+    // Camera default configurations
+    let camPitch = 25;
+    let camYaw = -30;
+    let camRoll = 0;
+    let isHovering = false;
+
+    // Create Audio Context on first interaction
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    // Synth monitor buzzer audio
+    function playBeep(type) {
+      if (muteState) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      const time = audioCtx.currentTime;
+      
+      if (type === 'click') {
+        // High pitch bezel button press click
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2000, time);
+        gainNode.gain.setValueAtTime(0.08 * volume, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.001 * volume, time + 0.03);
+        osc.start(time);
+        osc.stop(time + 0.04);
+      } else if (type === 'power-on') {
+        // Chime: rising dual beep
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, time);
+        osc.frequency.setValueAtTime(820, time + 0.08);
+        gainNode.gain.setValueAtTime(0.1 * volume, time);
+        gainNode.gain.setValueAtTime(0.1 * volume, time + 0.08);
+        gainNode.gain.exponentialRampToValueAtTime(0.001 * volume, time + 0.22);
+        osc.start(time);
+        osc.stop(time + 0.24);
+      } else if (type === 'power-off') {
+        // Chime: falling dual beep
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, time);
+        osc.frequency.setValueAtTime(450, time + 0.08);
+        gainNode.gain.setValueAtTime(0.1 * volume, time);
+        gainNode.gain.setValueAtTime(0.1 * volume, time + 0.08);
+        gainNode.gain.exponentialRampToValueAtTime(0.001 * volume, time + 0.22);
+        osc.start(time);
+        osc.stop(time + 0.24);
+      }
+    }
+
+    // Handle Power Switch
+    function togglePower() {
+      powerState = !powerState;
+      const btn = document.getElementById('btn-power');
+      const screen = document.getElementById('screenDisplay');
+      const powerLed = document.getElementById('powerLed');
+
+      if (powerState) {
+        btn.textContent = "Power: ON";
+        btn.classList.add('active');
+        screen.classList.remove('power-off');
+        document.documentElement.style.setProperty('--power-led-color', '#10b981');
+        playBeep('power-on');
+      } else {
+        btn.textContent = "Power: OFF";
+        btn.classList.remove('active');
+        screen.classList.add('power-off');
+        document.documentElement.style.setProperty('--power-led-color', '#ef4444');
+        playBeep('power-off');
+      }
+    }
+
+    // Toggle mute
+    function toggleMute() {
+      muteState = !muteState;
+      const btn = document.getElementById('btn-vol');
+      if (muteState) {
+        btn.textContent = "Muted";
+        btn.classList.add('active');
+      } else {
+        btn.textContent = "Mute Beep";
+        btn.classList.remove('active');
+      }
+    }
+
+    // Change display screen content modes
+    function setScreenMode(mode) {
+      if (!powerState) return;
+      playBeep('click');
+      currentScreenMode = mode;
+
+      // Update Active Screen UI Buttons
+      document.getElementById('btn-mode-code').classList.remove('active');
+      document.getElementById('btn-mode-terminal').classList.remove('active');
+      document.getElementById('btn-mode-visual').classList.remove('active');
+      
+      document.getElementById(`btn-mode-${mode}`).classList.add('active');
+
+      // Update Screen Contents classes
+      document.getElementById('modeCode').classList.remove('active');
+      document.getElementById('modeTerminal').classList.remove('active');
+      document.getElementById('modeVisual').classList.remove('active');
+      document.getElementById('screenDisplay').classList.remove('rgb-wave-display');
+
+      if (mode === 'code') {
+        document.getElementById('modeCode').classList.add('active');
+        document.documentElement.style.setProperty('--glow-color', 'rgba(59, 130, 246, 0.4)');
+      } else if (mode === 'terminal') {
+        document.getElementById('modeTerminal').classList.add('active');
+        document.documentElement.style.setProperty('--glow-color', 'rgba(34, 197, 94, 0.4)');
+      } else if (mode === 'visual') {
+        document.getElementById('modeVisual').classList.add('active');
+        document.getElementById('screenDisplay').classList.add('rgb-wave-display');
+        document.documentElement.style.setProperty('--glow-color', 'rgba(139, 92, 246, 0.45)');
+      }
+
+      setBacklight(backlightMode);
+    }
+
+    // Set Backlight (Ambilight) modes
+    function setBacklight(mode) {
+      backlightMode = mode;
+      playBeep('click');
+
+      // Update UI active buttons
+      document.getElementById('btn-glow-pulse').classList.remove('active');
+      document.getElementById('btn-glow-rgb').classList.remove('active');
+      document.getElementById('btn-glow-off').classList.remove('active');
+
+      const scene = document.getElementById('monitorScene');
+      scene.classList.remove('rgb-active');
+      scene.classList.remove('pulse-active');
+      scene.classList.remove('backlight-off');
+
+      if (mode === 'pulse') {
+        document.getElementById('btn-glow-pulse').classList.add('active');
+        scene.classList.add('pulse-active');
+        // Match solid color backglow
+        if (currentScreenMode === 'code') {
+          document.documentElement.style.setProperty('--glow-color', 'rgba(59, 130, 246, 0.4)');
+        } else if (currentScreenMode === 'terminal') {
+          document.documentElement.style.setProperty('--glow-color', 'rgba(34, 197, 94, 0.4)');
+        } else if (currentScreenMode === 'visual') {
+          document.documentElement.style.setProperty('--glow-color', 'rgba(139, 92, 246, 0.45)');
+        }
+      } else if (mode === 'rgb') {
+        document.getElementById('btn-glow-rgb').classList.add('active');
+        scene.classList.add('rgb-active');
+      } else {
+        document.getElementById('btn-glow-off').classList.add('active');
+        scene.classList.add('backlight-off');
+      }
+    }
+
+    // --- Dynamic Slider Listeners ---
+    
+    // Display control listeners
+    document.getElementById('sliderBrightness').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value) / 10;
+      document.getElementById('valBrightness').textContent = val.toFixed(1);
+      document.documentElement.style.setProperty('--screen-brightness', val);
+    });
+
+    // Ambilight Control listeners
+    document.getElementById('sliderGlowIntensity').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value) / 100;
+      document.getElementById('valGlowIntensity').textContent = val.toFixed(1);
+      document.documentElement.style.setProperty('--glow-intensity', val);
+    });
+
+    document.getElementById('sliderGlowBlur').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valGlowBlur').textContent = `${val}px`;
+      document.documentElement.style.setProperty('--glow-blur', `${val}px`);
+    });
+
+    // Stand & Height sliders
+    document.getElementById('sliderHeight').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valHeight').textContent = `${val}px`;
+      document.documentElement.style.setProperty('--monitor-height', `${val}px`);
+    });
+
+    document.getElementById('sliderTiltX').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valTiltX').textContent = `${val}°`;
+      document.documentElement.style.setProperty('--monitor-tilt-x', `${val}deg`);
+    });
+
+    document.getElementById('sliderTiltY').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valTiltY').textContent = `${val}°`;
+      document.documentElement.style.setProperty('--monitor-tilt-y', `${val}deg`);
+    });
+
+    document.getElementById('sliderBezel').addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      document.getElementById('valBezel').textContent = `${val}px`;
+      document.documentElement.style.setProperty('--bezel-width', `${val}px`);
+    });
+
+    // Camera sliders
+    function updateCameraTransform() {
+      const scene = document.getElementById('monitorScene');
+      let rx = camPitch;
+      let rz = camYaw;
+      let ry = camRoll;
+
+      if (isHovering) {
+        rx -= 3; // Slight vertical pitch offset on hover
+        rz += 2; // Slight horizontal yaw offset on hover
+      }
+
+      scene.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg)`;
+    }
+
+    document.getElementById('sliderCamX').addEventListener('input', (e) => {
+      camPitch = parseInt(e.target.value);
+      document.getElementById('valCamX').textContent = `${camPitch}°`;
+      updateCameraTransform();
+    });
+
+    document.getElementById('sliderCamZ').addEventListener('input', (e) => {
+      camYaw = parseInt(e.target.value);
+      document.getElementById('valCamZ').textContent = `${camYaw}°`;
+      updateCameraTransform();
+    });
+
+    document.getElementById('sliderCamY').addEventListener('input', (e) => {
+      camRoll = parseInt(e.target.value);
+      document.getElementById('valCamY').textContent = `${camRoll}°`;
+      updateCameraTransform();
+    });
+
+    // Hover mouse tracking on viewport to tilt camera dynamically
+    const viewport = document.querySelector('.keyboard-viewport');
+    viewport.addEventListener('mouseenter', () => {
+      isHovering = true;
+      updateCameraTransform();
+    });
+    viewport.addEventListener('mouseleave', () => {
+      isHovering = false;
+      updateCameraTransform();
+    });
+
+    // --- Color Pickers ---
+    function darkenHex(hex, factor = 0.6) {
+      let c = hex.replace("#", "");
+      let r = parseInt(c.substring(0, 2), 16);
+      let g = parseInt(c.substring(2, 4), 16);
+      let b = parseInt(c.substring(4, 6), 16);
+      
+      r = Math.floor(r * factor);
+      g = Math.floor(g * factor);
+      b = Math.floor(b * factor);
+      
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function hexToRgba(hex, alpha = 0.4) {
+      let c = hex.replace("#", "");
+      let r = parseInt(c.substring(0, 2), 16);
+      let g = parseInt(c.substring(2, 4), 16);
+      let b = parseInt(c.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    document.getElementById('colorBezel').addEventListener('input', (e) => {
+      document.documentElement.style.setProperty('--bezel-color', e.target.value);
+    });
+
+    document.getElementById('colorStand').addEventListener('input', (e) => {
+      const col = e.target.value;
+      document.documentElement.style.setProperty('--stand-color', col);
+      document.documentElement.style.setProperty('--stand-color-side', darkenHex(col, 0.6));
+    });
+
+    document.getElementById('colorLed').addEventListener('input', (e) => {
+      if (powerState) {
+        document.documentElement.style.setProperty('--power-led-color', e.target.value);
+      }
+    });
+
+    document.getElementById('colorGlow').addEventListener('input', (e) => {
+      document.documentElement.style.setProperty('--glow-color', hexToRgba(e.target.value, 0.45));
+    });
+
+    // --- Typing Box Interactive Logic ---
+    document.getElementById('typingTest').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = e.target.value.trim();
+        if (!val) return;
+        
+        playBeep('click');
+        
+        if (currentScreenMode === 'terminal') {
+          const body = document.getElementById('terminalBody');
+          const cursor = body.querySelector('.term-cursor');
+          
+          // User query append
+          const queryLine = document.createElement('div');
+          queryLine.textContent = `$ ${val}`;
+          body.insertBefore(queryLine, cursor);
+          
+          // Generate simple reply
+          setTimeout(() => {
+            const replyLine = document.createElement('div');
+            replyLine.className = 'term-green';
+            if (val.toLowerCase() === 'help') {
+              replyLine.textContent = "Available commands: help, status, clear, ping, matrix";
+            } else if (val.toLowerCase() === 'status') {
+              replyLine.textContent = "Status: ONLINE. Temp: 42C. RAM load: 45%. System core: OK.";
+            } else if (val.toLowerCase() === 'clear') {
+              body.querySelectorAll('div').forEach(el => {
+                if (el !== cursor && !el.classList.contains('terminal-header')) body.removeChild(el);
+              });
+              return;
+            } else if (val.toLowerCase() === 'ping') {
+              replyLine.textContent = "64 bytes from local_server: icmp_seq=1 ttl=64 time=0.032ms";
+            } else if (val.toLowerCase() === 'matrix') {
+              replyLine.className = 'term-green-bright';
+              replyLine.textContent = "Decoding Neo-synapse matrices... COMPLETE [100%]";
+            } else {
+              replyLine.className = 'term-red';
+              replyLine.textContent = `bash: command not found: ${val}`;
+            }
+            body.insertBefore(replyLine, cursor);
+            body.scrollTop = body.scrollHeight;
+          }, 300);
+
+          e.target.value = '';
+        } else if (currentScreenMode === 'code') {
+          const codePre = document.querySelector('.language-js');
+          const commentLine = document.createElement('div');
+          commentLine.className = 'term-dim';
+          commentLine.style.color = '#38bdf8';
+          commentLine.textContent = `// Custom Stream: ${val}`;
+          codePre.appendChild(commentLine);
+          e.target.value = '';
+        }
+      }
+    });
+
+    // --- Retro Terminal Loop simulator ---
+    const logLines = [
+      "Securing endpoint tunnels...",
+      "Syncing network clusters...",
+      "Active sub-thread spawned on core #4",
+      "Parsing synapse signals...",
+      "Optimal frame rate locked at 144fps",
+      "System core temperature: 42°C",
+      "Syncing 3D engine matrix data...",
+      "Diagnostics: All nodes online."
+    ];
+    let lineIdx = 0;
+    
+    function runTerminalSim() {
+      if (powerState && currentScreenMode === 'terminal') {
+        const body = document.getElementById('terminalBody');
+        const cursor = body.querySelector('.term-cursor');
+        if (body && cursor) {
+          const newLog = document.createElement('div');
+          newLog.className = 'term-dim';
+          newLog.textContent = `> ${logLines[lineIdx]}`;
+          body.insertBefore(newLog, cursor);
+          
+          lineIdx = (lineIdx + 1) % logLines.length;
+          
+          // Truncate to keep the console clean
+          while (body.children.length > 10) {
+            body.removeChild(body.children[1]); // Keep terminal header
+          }
+          body.scrollTop = body.scrollHeight;
+        }
+      }
+      setTimeout(runTerminalSim, 3000);
+    }
+
+    // Initialize Default State
+    setBacklight('pulse');
+    updateCameraTransform();
+    setTimeout(runTerminalSim, 2000);
+  </script>
+</body>
+</html>

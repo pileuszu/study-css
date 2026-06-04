@@ -38,7 +38,7 @@
       /* 3D Geometry States */
       --monitor-height: 120px;
       --monitor-tilt-x: -8deg;
-      --monitor-tilt-y: 0deg;
+      --monitor-tilt-y: 8deg;
       --bezel-width: 12px;
 
       /* 3D Camera coordinates */
@@ -309,7 +309,7 @@
       width: 220px;
       height: 160px;
       left: calc(50% - 110px);
-      top: calc(50% - 80px + 10px); /* Positioned behind the screen */
+      top: calc(50% - 80px + 60px); /* Positioned behind the screen */
       transform-style: preserve-3d;
       transform: translateZ(0px);
     }
@@ -353,7 +353,7 @@
       width: 44px;
       height: 36px;
       left: calc(50% - 22px);
-      top: calc(50% - 18px + 10px); /* Positioned behind the screen */
+      top: calc(50% - 18px + 60px); /* Positioned behind the screen */
       transform-style: preserve-3d;
       transform: translate3d(0, 0, 8px);
     }
@@ -597,8 +597,6 @@
       font-size: 0.75rem;
       color: #22c55e;
       text-align: left;
-      display: flex;
-      flex-direction: column;
       gap: 6px;
       box-shadow: inset 0 0 15px rgba(0,255,0,0.1);
     }
@@ -637,8 +635,6 @@
     .mode-visual-content {
       background: #06060b;
       padding: 16px;
-      display: flex;
-      flex-direction: column;
       justify-content: space-between;
       color: #fff;
     }
@@ -959,9 +955,9 @@
         <div class="control-slider-group">
           <div class="slider-header">
             <span>Screen Swivel (Yaw)</span>
-            <span class="val" id="valTiltY">0°</span>
+            <span class="val" id="valTiltY">8°</span>
           </div>
-          <input type="range" class="custom-slider" id="sliderTiltY" min="-30" max="30" value="0">
+          <input type="range" class="custom-slider" id="sliderTiltY" min="-30" max="30" value="8">
         </div>
         <div class="control-slider-group">
           <div class="slider-header">

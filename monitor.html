@@ -302,113 +302,251 @@
     }
 
     /* --- 3D Monitor Elements --- */
-    
-    /* 1. Base foot */
+
+    /* Stand & Pillar are children of monitor-panel-3d.
+       monitor-panel-3d transform: translate3d(0,-18,H+12) rotateX(-90deg) ...
+       In panel LOCAL space after rotateX(-90deg):
+         X-axis → screen right
+         Y-axis → out toward viewer (panel depth direction)
+         Z-axis → screen downward
+       Panel is 520px wide, 320px tall.
+       Panel origin (0,0) is top-left corner.
+       Front face (screen) is at local Y = 12px (translateZ(12px) before rotateX).
+       Bottom of panel (locally) = top + 320px = 50%+160px absolute. */
+
+    /* 1. Base foot — flat horizontal slab, sits at panel bottom, pushed back in Y */
     .base-3d {
       position: absolute;
       width: 220px;
-      height: 160px;
+      height: 8px;         /* thickness of the slab in panel-local Z */
       left: calc(50% - 110px);
-      top: calc(50% - 80px + 90px); /* Positioned behind the screen */
+      /* Push base below panel bottom: panel bottom = 50%+160px, add 10px gap */
+      top: calc(50% + 165px);
       transform-style: preserve-3d;
-      transform: translateZ(0px);
+      /* No extra rotation — panel is already rotated.
+         Just push base backward (negative Y = behind screen) */
+      transform: translateY(-80px);
     }
 
+    /* Base top surface (facing up in world = facing toward viewer in panel local) */
     .base-top {
       position: absolute;
-      width: 100%;
-      height: 100%;
+      width: 220px;
+      height: 160px;   /* depth of base (front-to-back in world) */
       background: var(--stand-color);
       border-radius: 8px;
-      transform: translateZ(8px);
+      /* Rotate 90deg so it lies flat: rotate around X so face points in local +Y */
+      transform-origin: top center;
+      transform: rotateX(-90deg);
       border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.05),
                   0 8px 16px rgba(0, 0, 0, 0.5);
     }
 
+    /* Base front edge (the thin face facing the viewer) */
     .base-front {
       position: absolute;
-      width: 100%;
+      width: 220px;
       height: 8px;
       background: var(--stand-color-side);
-      transform-origin: top center;
-      transform: translate3d(0, 160px, 8px) rotateX(-90deg);
-      border-radius: 0 0 8px 8px;
+      top: 0;
+      left: 0;
+      border-radius: 0 0 4px 4px;
     }
 
+    /* Base right side edge */
     .base-right {
       position: absolute;
       width: 8px;
-      height: 100%;
+      height: 8px;
       background: var(--stand-color-side);
-      transform-origin: left center;
-      transform: translate3d(220px, 0, 8px) rotateY(90deg);
-      border-radius: 0 8px 8px 0;
+      top: 0;
+      right: 0;
       filter: brightness(0.8);
     }
 
-    /* 2. Stand Pillar */
+    /* 2. Stand Pillar — vertical column connecting base to panel bottom */
     .pillar-3d {
       position: absolute;
       width: 44px;
-      height: 36px;
+      height: var(--monitor-height);  /* height in panel-local Z = height in world */
+      /* Centered horizontally under panel (panel 520px wide, pillar 44px) */
       left: calc(50% - 22px);
-      top: calc(50% - 18px + 90px); /* Positioned behind the screen */
+      /* Connect to panel bottom edge */
+      top: calc(50% + 160px);
       transform-style: preserve-3d;
-      transform: translate3d(0, 0, 8px);
+      /* Push pillar back same as base center-depth: -80px in Y */
+      transform: translateY(-80px);
     }
 
+    /* Pillar front face (facing viewer) */
     .pillar-front {
       position: absolute;
-      width: 100%;
-      height: var(--monitor-height);
+      width: 44px;
+      height: 100%;   /* = --monitor-height */
       background: var(--stand-color);
-      transform-origin: bottom center;
-      transform: translate3d(0, -36px, 0) rotateX(-90deg);
+      top: 0; left: 0;
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
+    /* Pillar right face */
     .pillar-right {
       position: absolute;
-      width: 36px;
-      height: var(--monitor-height);
+      width: 36px;   /* depth of pillar */
+      height: 100%;
       background: var(--stand-color-side);
-      transform-origin: bottom left;
-      transform: translate3d(44px, -36px, 0) rotateY(90deg) rotateX(-90deg);
+      top: 0; left: 44px;
+      transform-origin: left center;
+      transform: rotateY(90deg);
       filter: brightness(0.85);
     }
 
+    /* Pillar left face */
     .pillar-left {
       position: absolute;
       width: 36px;
-      height: var(--monitor-height);
+      height: 100%;
       background: var(--stand-color-side);
-      transform-origin: bottom left;
-      transform: translate3d(0, -36px, 0) rotateY(90deg) rotateX(-90deg);
+      top: 0; left: 0;
+      transform-origin: right center;
+      transform: rotateY(-90deg);
       filter: brightness(0.7);
     }
 
     .pillar-top {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: var(--stand-color);
-      transform: translateZ(var(--monitor-height));
+      display: none;
     }
 
-    /* 3. Monitor Display Panel Box */
+    /* ========================================================
+       HIERARCHICAL 3D MONITOR ASSEMBLY
+       DOM tree: .base-3d > .pillar-3d > .monitor-panel-3d
+       Coordinate system (before camera rotation):
+         X: right (+)
+         Y: down (+)  ← CSS default
+         Z: toward viewer (+)
+       Camera rotation applied to .monitor-scene only.
+    ======================================================== */
+
+    /* 1. BASE — flat horizontal slab in world space
+       Positioned in scene, centered horizontally.
+       Width=220px (X), Thickness=16px (Y), Depth=160px (Z)
+       Depth: we center Z so front/back are +80/-80 from origin.
+       We set the base-3d's transform: translateZ(80px) so its
+       "zero Z" is 80px in front of scene center → front face at Z=80, back at Z=-80. */
+    .base-3d {
+      position: absolute;
+      width: 220px;
+      height: 16px;
+      left: calc(50% - 110px);
+      top: calc(50% + 90px);   /* floor level: 90px below scene center */
+      transform-style: preserve-3d;
+      /* No Z shift — front edge of base at scene Z=0 */
+    }
+
+    /* Top surface of base: lies flat, extends 160px back in -Z */
+    .base-top {
+      position: absolute;
+      width: 220px;
+      height: 160px;
+      top: 0; left: 0;
+      transform-origin: top left;
+      transform: rotateX(-90deg);   /* pivots at Y=0, extends in -Z direction */
+      background: var(--stand-color);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.05),
+                  0 8px 16px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Front edge of base (thin face facing viewer) */
+    .base-front {
+      position: absolute;
+      width: 220px;
+      height: 16px;
+      top: 0; left: 0;
+      background: var(--stand-color-side);
+      border-radius: 0 0 4px 4px;
+    }
+
+    /* Right side face of base */
+    .base-right {
+      position: absolute;
+      width: 160px;
+      height: 16px;
+      top: 0; left: 220px;
+      transform-origin: left center;
+      transform: rotateY(90deg);
+      background: var(--stand-color-side);
+      filter: brightness(0.8);
+    }
+
+    /* 2. PILLAR — vertical column, CHILD of base-3d
+       Positioned at center of base's top surface.
+       base top surface: Y=0, Z from 0 to -160. Center Z = -80.
+       Pillar: 44px wide (X), height=--monitor-height (Y), 36px deep (Z).
+       Left: (220-44)/2 = 88px (centered on base width)
+       Top:  -(--monitor-height)  → pillar bottom at Y=0 (base top surface)
+       translateZ(-80px+18px) = translateZ(-62px) → front face at Z=-62 (centered depth) */
+    .pillar-3d {
+      position: absolute;
+      width: 44px;
+      height: var(--monitor-height);
+      left: 88px;
+      top: calc(-1 * var(--monitor-height));   /* bottom edge at Y=0 = base top surface */
+      transform: translateZ(-62px);            /* center depth-wise on base */
+      transform-style: preserve-3d;
+    }
+
+    /* Pillar front face (facing viewer) */
+    .pillar-front {
+      position: absolute;
+      width: 44px; height: 100%;
+      top: 0; left: 0;
+      background: var(--stand-color);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Pillar right face */
+    .pillar-right {
+      position: absolute;
+      width: 36px; height: 100%;
+      top: 0; left: 44px;
+      transform-origin: left center;
+      transform: rotateY(90deg);
+      background: var(--stand-color-side);
+      filter: brightness(0.85);
+    }
+
+    /* Pillar left face */
+    .pillar-left {
+      position: absolute;
+      width: 36px; height: 100%;
+      top: 0; left: 0;
+      transform-origin: right center;
+      transform: rotateY(-90deg);
+      background: var(--stand-color-side);
+      filter: brightness(0.7);
+    }
+
+    .pillar-top {
+      display: none;
+    }
+
+    /* 3. MONITOR PANEL — CHILD of pillar-3d
+       Sits at the TOP of the pillar (Y=0 in pillar space = pillar top edge).
+       Panel: 520px wide, 320px tall, facing viewer (no rotateX needed!).
+       Left: (44-520)/2 = -238px  → centered on pillar center X
+       Top:  -320px              → bottom edge at pillar top (Y=0), rises 320px up
+       Tilt/Swivel pivot at bottom-center (where it connects to pillar). */
     .monitor-panel-3d {
       position: absolute;
       width: 520px;
       height: 320px;
-      left: calc(50% - 260px);
-      top: calc(50% - 160px + 60px);
+      left: -238px;    /* (44 - 520) / 2 = -238  → centered on pillar */
+      top: -320px;     /* bottom at Y=0 (pillar top), panel rises 320px */
       transform-style: preserve-3d;
-      /* Stand pivot coordinate: height is added dynamically */
-      transform: translate3d(0, -18px, calc(var(--monitor-height) + 12px)) 
-                 rotateX(-90deg) 
-                 rotateY(var(--monitor-tilt-y)) 
-                 rotateX(var(--monitor-tilt-x));
+      transform-origin: center bottom;   /* tilt pivot at connection point */
+      transform: rotateY(var(--monitor-tilt-y)) rotateX(var(--monitor-tilt-x));
       transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -976,7 +1114,7 @@
             <span>Camera Pitch</span>
             <span class="val" id="valCamX">65°</span>
           </div>
-          <input type="range" class="custom-slider" id="sliderCamX" min="10" max="75" value="65">
+          <input type="range" class="custom-slider" id="sliderCamX" min="10" max="89" value="65">
         </div>
         <div class="control-slider-group">
           <div class="slider-header">
@@ -1030,46 +1168,45 @@
     <div class="keyboard-viewport">
       <!-- 3D Scene Wrapper -->
       <div class="monitor-scene" id="monitorScene">
-        
-        <!-- Stand Base -->
+
+        <!-- ① BASE (받침대) — world space root of the assembly -->
         <div class="base-3d">
           <div class="base-top"></div>
           <div class="base-front"></div>
           <div class="base-right"></div>
-        </div>
 
-        <!-- Stand Pillar -->
-        <div class="pillar-3d">
-          <div class="pillar-front"></div>
-          <div class="pillar-right"></div>
-          <div class="pillar-left"></div>
-          <div class="pillar-top"></div>
-        </div>
+          <!-- ② PILLAR (스탠드) — child of base, sits on base center top -->
+          <div class="pillar-3d">
+            <div class="pillar-front"></div>
+            <div class="pillar-right"></div>
+            <div class="pillar-left"></div>
+            <div class="pillar-top"></div>
 
-        <!-- Monitor Panel -->
-        <div class="monitor-panel-3d" id="monitorPanel">
-          <!-- Back Cover -->
-          <div class="monitor-face monitor-back">
-            <!-- Ambilight backglow inside the back cover so it sits behind it -->
-            <div class="monitor-backglow" id="backglow"></div>
-            <div class="back-logo">3D DISP</div>
-          </div>
-          <!-- Sides -->
-          <div class="monitor-side monitor-top-side"></div>
-          <div class="monitor-side monitor-bottom-side"></div>
-          <div class="monitor-side monitor-left-side"></div>
-          <div class="monitor-side monitor-right-side"></div>
+            <!-- ③ MONITOR HEAD — child of pillar, hangs from pillar top -->
+            <div class="monitor-panel-3d" id="monitorPanel">
 
-          <!-- Front Face (Screen + Bezel) -->
-          <div class="monitor-face monitor-front">
-            <div class="screen-display" id="screenDisplay">
-              <!-- Gloss Reflection Layer -->
-              <div class="screen-gloss"></div>
-              
-              <!-- Mode 1: Code Editor -->
-              <div class="screen-content mode-code-content active" id="modeCode">
-                <div class="ide-tab">index.js</div>
-                <pre><code class="language-js"><span class="keyword">const</span> display = <span class="keyword">new</span> <span class="class">3DDisplay</span>({
+              <!-- Back Cover -->
+              <div class="monitor-face monitor-back">
+                <div class="monitor-backglow" id="backglow"></div>
+                <div class="back-logo">3D DISP</div>
+              </div>
+
+              <!-- Sides -->
+              <div class="monitor-side monitor-top-side"></div>
+              <div class="monitor-side monitor-bottom-side"></div>
+              <div class="monitor-side monitor-left-side"></div>
+              <div class="monitor-side monitor-right-side"></div>
+
+              <!-- Front Face (Screen + Bezel) -->
+              <div class="monitor-face monitor-front">
+                <div class="screen-display" id="screenDisplay">
+                  <!-- Gloss Reflection Layer -->
+                  <div class="screen-gloss"></div>
+
+                  <!-- Mode 1: Code Editor -->
+                  <div class="screen-content mode-code-content active" id="modeCode">
+                    <div class="ide-tab">index.js</div>
+                    <pre><code class="language-js"><span class="keyword">const</span> display = <span class="keyword">new</span> <span class="class">3DDisplay</span>({
   res: <span class="string">'8K IPS'</span>,
   backlight: <span class="string">'ambilight'</span>,
   hdr: <span class="keyword">true</span>
@@ -1078,51 +1215,57 @@
 display.<span class="method">powerOn</span>();
 display.<span class="method">syncAmbientGlow</span>();
 display.<span class="method">setOrientation</span>(<span class="number">25</span>);</code></pre>
-              </div>
-
-              <!-- Mode 2: Retro Terminal -->
-              <div class="screen-content mode-terminal-content" id="modeTerminal">
-                <div class="terminal-header">bash - diagnostics terminal</div>
-                <div class="terminal-body" id="terminalBody">
-                  <div>$ systemctl status matrix.service</div>
-                  <div class="term-green">● matrix.service - 3D Simulation Engine</div>
-                  <div>   Loaded: loaded (/etc/systemd/system/matrix)</div>
-                  <div>   Active: <span class="term-green">active (running)</span> since Thu; 5s ago</div>
-                  <div>   Main PID: 1337 (engine)</div>
-                  <div class="term-dim">Jun 04 16:49: simulation engine initialized.</div>
-                  <div class="term-cursor">$ █</div>
-                </div>
-              </div>
-
-              <!-- Mode 3: Graphic Visualizer (Color Wave) -->
-              <div class="screen-content mode-visual-content" id="modeVisual">
-                <div class="visual-grid">
-                  <div class="visual-ring"></div>
-                  <div class="visual-stats">
-                    <div class="stat-row"><span>CPU</span><div class="bar"><div class="fill" style="width: 76%"></div></div></div>
-                    <div class="stat-row"><span>GPU</span><div class="bar"><div class="fill" style="width: 92%"></div></div></div>
-                    <div class="stat-row"><span>RAM</span><div class="bar"><div class="fill" style="width: 45%"></div></div></div>
                   </div>
+
+                  <!-- Mode 2: Retro Terminal -->
+                  <div class="screen-content mode-terminal-content" id="modeTerminal">
+                    <div class="terminal-header">bash - diagnostics terminal</div>
+                    <div class="terminal-body" id="terminalBody">
+                      <div>$ systemctl status matrix.service</div>
+                      <div class="term-green">● matrix.service - 3D Simulation Engine</div>
+                      <div>   Loaded: loaded (/etc/systemd/system/matrix)</div>
+                      <div>   Active: <span class="term-green">active (running)</span> since Thu; 5s ago</div>
+                      <div>   Main PID: 1337 (engine)</div>
+                      <div class="term-dim">Jun 04 16:49: simulation engine initialized.</div>
+                      <div class="term-cursor">$ █</div>
+                    </div>
+                  </div>
+
+                  <!-- Mode 3: Graphic Visualizer (Color Wave) -->
+                  <div class="screen-content mode-visual-content" id="modeVisual">
+                    <div class="visual-grid">
+                      <div class="visual-ring"></div>
+                      <div class="visual-stats">
+                        <div class="stat-row"><span>CPU</span><div class="bar"><div class="fill" style="width: 76%"></div></div></div>
+                        <div class="stat-row"><span>GPU</span><div class="bar"><div class="fill" style="width: 92%"></div></div></div>
+                        <div class="stat-row"><span>RAM</span><div class="bar"><div class="fill" style="width: 45%"></div></div></div>
+                      </div>
+                    </div>
+                    <div class="visual-wave">
+                      <div class="wave-bar" style="--h: 60%; --d: 0.1s"></div>
+                      <div class="wave-bar" style="--h: 80%; --d: 0.2s"></div>
+                      <div class="wave-bar" style="--h: 40%; --d: 0.3s"></div>
+                      <div class="wave-bar" style="--h: 90%; --d: 0.4s"></div>
+                      <div class="wave-bar" style="--h: 70%; --d: 0.5s"></div>
+                      <div class="wave-bar" style="--h: 50%; --d: 0.6s"></div>
+                      <div class="wave-bar" style="--h: 85%; --d: 0.7s"></div>
+                    </div>
+                  </div>
+
                 </div>
-                <div class="visual-wave">
-                  <div class="wave-bar" style="--h: 60%; --d: 0.1s"></div>
-                  <div class="wave-bar" style="--h: 80%; --d: 0.2s"></div>
-                  <div class="wave-bar" style="--h: 40%; --d: 0.3s"></div>
-                  <div class="wave-bar" style="--h: 90%; --d: 0.4s"></div>
-                  <div class="wave-bar" style="--h: 70%; --d: 0.5s"></div>
-                  <div class="wave-bar" style="--h: 50%; --d: 0.6s"></div>
-                  <div class="wave-bar" style="--h: 85%; --d: 0.7s"></div>
-                </div>
+                <!-- Indicator LED -->
+                <div class="monitor-led" id="powerLed"></div>
               </div>
 
-            </div>
-            <!-- Indicator LED -->
-            <div class="monitor-led" id="powerLed"></div>
-          </div>
-        </div>
+            </div><!-- /monitor-panel-3d -->
 
-      </div>
-    </div>
+          </div><!-- /pillar-3d -->
+
+        </div><!-- /base-3d -->
+
+      </div><!-- /monitor-scene -->
+    </div><!-- /keyboard-viewport -->
+
 
   </div>
 
